@@ -95,20 +95,9 @@ A **Tkinter-based desktop GUI** was built for real-time leaf disease classificat
 
 ```
 plant-disease-detection/
-├── models/
-│   ├── alexnet.py
-│   ├── densenet.py
-│   ├── googlenet.py
-│   ├── lenet5.py
-│   ├── resnet50.py
-│   ├── vgg16.py
-│   └── vgg19.py
-├── preprocessing/
-│   └── data_loader.py
-├── gui/
-│   └── app.py
-├── train.py
-├── evaluate.py
+├── alexnet.py          # AlexNet implementation
+├── googlenet.py        # GoogleNet (Inception V1) — best model (99.1%)
+├── models.py           # VGG16, VGG19, ResNet50, LeNet-5, DenseNet
 ├── requirements.txt
 └── README.md
 ```
@@ -126,12 +115,20 @@ cd plant-disease-detection
 pip install -r requirements.txt
 
 # Download dataset from Kaggle and place in ./data/
+# https://www.kaggle.com/datasets/vipoooool/new-plant-diseases-dataset
 
-# Train a model (e.g. GoogleNet)
-python train.py --model googlenet --epochs 20 --lr 0.001
+# Train GoogleNet (best model)
+python googlenet.py
 
-# Launch GUI
-python gui/app.py
+# Train AlexNet
+python alexnet.py
+
+# Train other models (VGG16, VGG19, ResNet50, LeNet-5, DenseNet)
+python models.py --model vgg16
+python models.py --model vgg19
+python models.py --model resnet50
+python models.py --model lenet5
+python models.py --model densenet
 ```
 
 ---
