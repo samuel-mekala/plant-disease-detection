@@ -20,28 +20,30 @@ We implemented and **benchmarked 7 CNN architectures** side-by-side using transf
 ---
 
 ## 🏗️ System Architecture
- 
+
+![Proposed System](images/proposed_system.png)
+
 ```
 Input: Leaf Image (any resolution)
             │
             ▼
-┌───────────────────────┐
-│   Image Preprocessing  │
-│  • Resize → 224×224   │
-│  • Normalize (ImageNet)│
-│  • Augment (flip/crop/ │
-│    rotate/color jitter)│
-│  • 70/15/15 split     │
-└──────────┬────────────┘
+┌─────────────────────────┐
+│   Image Preprocessing   │
+│  • Resize → 224×224     │
+│  • Normalize (ImageNet) │
+│  • Augment (flip/crop/  │
+│    rotate/color jitter) │
+│  • 70/15/15 split       │
+└──────────┬──────────────┘
            │
-    ┌──────┴──────────────────────┐
-    │   CNN Model Selection       │
-    │                             │
-    │  LeNet-5 → AlexNet →        │
-    │  VGG16 → VGG19 →           │
-    │  ResNet-50 → DenseNet →     │
-    │  GoogleNet ✅ (Best)        │
-    └──────┬──────────────────────┘
+┌──────────┴──────────────────┐
+│   CNN Model Selection       │
+│                             │
+│  LeNet-5 → AlexNet →        │
+│  VGG16 → VGG19 →            │
+│  ResNet-50 → DenseNet →     │
+│  GoogleNet (Best)           │
+└──────────┬──────────────────┘
            │
            ▼
 ┌───────────────────────┐
@@ -68,24 +70,24 @@ Input: Leaf Image (any resolution)
 | AlexNet | ~94.1% | 60.9M | Fast | 5 conv + 3 FC · ReLU · Dropout | Fast inference |
 | LeNet-5 | ~85.0% | 0.06M | Fastest | 2 conv + 2 FC layers · 32×32 input | Lightweight baseline |
  
-![Model Comparison](images/model_comparison_table.png)
- 
 ---
 
 ## 📊 Results
+  
+![Comparision](images/comparision.png)
  
+![parameters](images/parameters.png)
+
 ### GoogleNet — Best Model (99.1% Accuracy)
- 
-| | Accuracy | Loss |
-|---|---|---|
+
+| Accuracy | Loss |
+|---|---|
 | ![GoogleNet Accuracy](images/googlenet_accuracy.png) | | ![GoogleNet Loss](images/googlenet_loss.png) |
- 
-![GoogleNet Confusion Matrix](images/googlenet_confusion_matrix.png)
- 
+
 ### AlexNet
  
-| | Accuracy | Loss |
-|---|---|---|
+| Accuracy | Loss |
+|---|---|
 | ![AlexNet Accuracy](images/alexnet_accuracy.png) | | ![AlexNet Loss](images/alexnet_loss.png) |
  
 ![AlexNet Confusion Matrix](images/alexnet_confusion_matrix.png)
@@ -190,12 +192,12 @@ plant-disease-detection/
 │   └── workflows/
 │       └── ci.yml                  # GitHub Actions CI
 ├── images/
+|   ├── comparision.png
+|   ├── parameters.png
 │   ├── googlenet_accuracy.png
 │   ├── googlenet_loss.png
-│   ├── googlenet_confusion_matrix.png
 │   ├── alexnet_accuracy.png
 │   ├── alexnet_loss.png
-│   ├── alexnet_confusion_matrix.png
 │   ├── vgg16_accuracy.png
 │   ├── vgg16_loss.png
 │   ├── vgg19_accuracy.png
