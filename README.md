@@ -82,13 +82,13 @@ Input: Leaf Image (any resolution)
 
 | Accuracy | Loss |
 |---|---|
-| ![GoogleNet Accuracy](images/googlenet_accuracy.png) | | ![GoogleNet Loss](images/googlenet_loss.png) |
+| ![GoogleNet Accuracy](images/googlenet_accuracy.png) | ![GoogleNet Loss](images/googlenet_loss.png) |
 
 ### AlexNet
  
 | Accuracy | Loss |
 |---|---|
-| ![AlexNet Accuracy](images/alexnet_accuracy.png) | | ![AlexNet Loss](images/alexnet_loss.png) |
+| ![AlexNet Accuracy](images/alexnet_accuracy.png) | ![AlexNet Loss](images/alexnet_loss.png) |
  
 ### Other Models
  
