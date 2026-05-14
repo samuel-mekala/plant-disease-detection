@@ -190,6 +190,7 @@ plant-disease-detection/
 │   └── workflows/
 │       └── ci.yml                  # GitHub Actions CI
 ├── images/
+|   ├── proposed_system.png
 |   ├── comparision.png
 |   ├── parameters.png
 │   ├── googlenet_accuracy.png
