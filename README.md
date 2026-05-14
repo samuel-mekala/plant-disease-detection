@@ -207,9 +207,6 @@ plant-disease-detection/
 │   ├── densenet_loss.png
 │   ├── lenet_accuracy.png
 │   ├── lenet_loss.png
-│   ├── lenet_architecture.png
-│   ├── model_comparison_table.png
-│   ├── sample_predictions.png
 │   └── gui_screenshot.png
 ├── alexnet.py                      # AlexNet — training + evaluation + confusion matrix
 ├── googlenet.py                    # GoogleNet — best model (99.1%)
