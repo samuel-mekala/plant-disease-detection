@@ -90,8 +90,6 @@ Input: Leaf Image (any resolution)
 |---|---|
 | ![AlexNet Accuracy](images/alexnet_accuracy.png) | | ![AlexNet Loss](images/alexnet_loss.png) |
  
-![AlexNet Confusion Matrix](images/alexnet_confusion_matrix.png)
- 
 ### Other Models
  
 | VGG16 Accuracy | VGG16 Loss |
