@@ -22,6 +22,17 @@ from tensorflow.keras.layers import (Conv2D, MaxPool2D, Activation, Flatten,
                                      Dense, Dropout, BatchNormalization)
 from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
 
+def get_data_paths():
+    candidates = [
+        "data/New Plant Diseases Dataset(Augmented)/New Plant Diseases Dataset(Augmented)",
+        "../input/new-plant-diseases-dataset/New Plant Diseases Dataset(Augmented)/New Plant Diseases Dataset(Augmented)",
+        "../input/new-plant-diseases-dataset/new plant diseases dataset(augmented)/New Plant Diseases Dataset(Augmented)"
+    ]
+    for c in candidates:
+        if os.path.exists(os.path.join(c, "train")):
+            return os.path.join(c, "train"), os.path.join(c, "valid")
+    return candidates[0] + "/train", candidates[0] + "/valid"
+
 def build_alexnet(input_shape=(224, 224, 3), num_classes=38):
     model = Sequential(name="AlexNet")
     model.add(Conv2D(96, (11, 11), strides=(4, 4), padding='valid',
@@ -69,13 +80,14 @@ if __name__ == "__main__":
         strategy = tf.distribute.MirroredStrategy()
     print("Number of accelerators: ", strategy.num_replicas_in_sync)
 
-    data_dir = "../input/new-plant-diseases-dataset/New Plant Diseases Dataset(Augmented)/New Plant Diseases Dataset(Augmented)"
-    train_dir = os.path.join(data_dir, "train")
-    test_dir = os.path.join(data_dir, "valid")
+    train_dir, test_dir = get_data_paths()
+    print(f"Using train path: {train_dir}")
+    print(f"Using test path: {test_dir}")
 
     if os.path.exists(train_dir):
         diseases = os.listdir(train_dir)
-        print("Total disease classes are: {}".format(len(diseases)))
+        num_classes = len(diseases)
+        print("Total disease classes are: {}".format(num_classes))
 
         train_datagen = ImageDataGenerator(
             rescale=1./255, shear_range=0.2, zoom_range=0.2,
@@ -104,7 +116,7 @@ if __name__ == "__main__":
         li = list(label_map.keys())
 
         with strategy.scope():
-            model = build_alexnet()
+            model = build_alexnet(num_classes=num_classes)
             model.compile(
                 optimizer=Adam(learning_rate=0.001),
                 loss='categorical_crossentropy',
@@ -112,7 +124,8 @@ if __name__ == "__main__":
             )
 
         print(model.summary())
-        checkpoint_path = "fine_tune_checkpoints/"
+        os.makedirs("fine_tune_checkpoints", exist_ok=True)
+        checkpoint_path = "fine_tune_checkpoints/alexnet_weights.h5"
         cb = [
             callbacks.EarlyStopping(monitor="val_loss", patience=3),
             callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.2, patience=2, verbose=1, min_lr=1e-7),
@@ -123,7 +136,6 @@ if __name__ == "__main__":
         model.load_weights(checkpoint_path)
         model.evaluate(test_set)
         model.save("AlexNetModel.hdf5")
+        print("AlexNet model trained and saved successfully!")
     else:
-        print(f"Dataset path '{train_dir}' not found. Build verification passed.")
-        model = build_alexnet()
-        print("AlexNet model structure built successfully.")
+        print(f"Dataset path '{train_dir}' not found.")

@@ -23,6 +23,17 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from sklearn.metrics import (classification_report, confusion_matrix, accuracy_score)
 from PIL import Image
 
+def get_data_paths():
+    candidates = [
+        "data/New Plant Diseases Dataset(Augmented)/New Plant Diseases Dataset(Augmented)",
+        "../input/new-plant-diseases-dataset/New Plant Diseases Dataset(Augmented)/New Plant Diseases Dataset(Augmented)",
+        "../input/new-plant-diseases-dataset/new plant diseases dataset(augmented)/New Plant Diseases Dataset(Augmented)"
+    ]
+    for c in candidates:
+        if os.path.exists(os.path.join(c, "train")):
+            return os.path.join(c, "train"), os.path.join(c, "valid")
+    return candidates[0] + "/train", candidates[0] + "/valid"
+
 def inceptionnet(x, filters):
     layer1 = Conv2D(filters[0], (1, 1), strides=1, padding="same", activation="relu")(x)
 
@@ -84,13 +95,15 @@ def build_googlenet(input_shape=(120, 120, 3), num_classes=38):
 
     return Model(inputs=inputlayer, outputs=[final_2, final_0, final_1], name="GoogleNet")
 
-if __name__ == "__main__":
-    image_path = "../input/new-plant-diseases-dataset/New Plant Diseases Dataset(Augmented)/New Plant Diseases Dataset(Augmented)/train/"
-    valid_image_path = "../input/new-plant-diseases-dataset/New Plant Diseases Dataset(Augmented)/New Plant Diseases Dataset(Augmented)/valid/"
+def train_googlenet():
+    image_path, valid_image_path = get_data_paths()
+    print(f"Using training path: {image_path}")
+    print(f"Using validation path: {valid_image_path}")
 
     if os.path.exists(image_path):
         class_names = os.listdir(image_path)
-        print(f"Total classes: {len(class_names)}")
+        num_classes = len(class_names)
+        print(f"Total classes: {num_classes}")
 
         batch_size = 32
         train_gen = ImageDataGenerator(
@@ -114,7 +127,7 @@ if __name__ == "__main__":
             target_size=(120, 120), color_mode="rgb", shuffle=False
         )
 
-        model = build_googlenet()
+        model = build_googlenet(num_classes=num_classes)
         model.summary()
 
         model.compile(
@@ -124,7 +137,8 @@ if __name__ == "__main__":
             metrics=['accuracy']
         )
 
-        checkpoint_path = "fine_tune_checkpoints/"
+        os.makedirs("fine_tune_checkpoints", exist_ok=True)
+        checkpoint_path = "fine_tune_checkpoints/googlenet_best.h5"
         cb = [
             callbacks.EarlyStopping(monitor="val_loss", patience=3),
             callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.2, patience=2, verbose=1, min_lr=1e-7),
@@ -133,13 +147,15 @@ if __name__ == "__main__":
 
         history = model.fit(
             train_data,
-            steps_per_epoch=train_data.samples // batch_size,
+            steps_per_epoch=max(1, train_data.samples // batch_size),
             epochs=30, verbose=1, callbacks=cb,
             validation_data=valid_data,
-            validation_steps=valid_data.samples // batch_size,
+            validation_steps=max(1, valid_data.samples // batch_size),
         )
         model.save("googlenet_plant_disease.h5")
+        print("GoogleNet model trained and saved successfully to googlenet_plant_disease.h5")
     else:
-        print(f"Dataset path '{image_path}' not found. Build verification passed.")
-        model = build_googlenet()
-        print("GoogleNet model structure built successfully.")
+        print(f"Dataset path '{image_path}' not found.")
+
+if __name__ == "__main__":
+    train_googlenet()

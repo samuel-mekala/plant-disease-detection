@@ -35,11 +35,19 @@ from tensorflow.keras.applications import VGG16, ResNet50
 from tensorflow.keras.applications.resnet50 import preprocess_input
 from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
 
-DATA_DIR = "../input/new-plant-diseases-dataset/New Plant Diseases Dataset(Augmented)/New Plant Diseases Dataset(Augmented)"
-TRAIN_DIR = os.path.join(DATA_DIR, "train")
-VALID_DIR = os.path.join(DATA_DIR, "valid")
+def get_data_dirs():
+    candidates = [
+        "data/New Plant Diseases Dataset(Augmented)/New Plant Diseases Dataset(Augmented)",
+        "../input/new-plant-diseases-dataset/New Plant Diseases Dataset(Augmented)/New Plant Diseases Dataset(Augmented)",
+        "../input/new-plant-diseases-dataset/new plant diseases dataset(augmented)/New Plant Diseases Dataset(Augmented)"
+    ]
+    for c in candidates:
+        if os.path.exists(os.path.join(c, "train")):
+            return os.path.join(c, "train"), os.path.join(c, "valid")
+    return candidates[0] + "/train", candidates[0] + "/valid"
 
 def get_generators(img_size=(224, 224), batch_size=128):
+    train_dir, valid_dir = get_data_dirs()
     train_gen = ImageDataGenerator(
         rescale=1./255, shear_range=0.2, zoom_range=0.2,
         rotation_range=20, width_shift_range=0.2, height_shift_range=0.2,
@@ -48,20 +56,21 @@ def get_generators(img_size=(224, 224), batch_size=128):
     val_gen = ImageDataGenerator(rescale=1./255)
 
     training_set = train_gen.flow_from_directory(
-        TRAIN_DIR, target_size=img_size, batch_size=batch_size,
+        train_dir, target_size=img_size, batch_size=batch_size,
         class_mode='categorical', subset='training'
     )
     valid_set = train_gen.flow_from_directory(
-        TRAIN_DIR, target_size=img_size, batch_size=batch_size,
+        train_dir, target_size=img_size, batch_size=batch_size,
         class_mode='categorical', subset='validation', shuffle=False
     )
     test_set = val_gen.flow_from_directory(
-        VALID_DIR, target_size=img_size, batch_size=batch_size,
+        valid_dir, target_size=img_size, batch_size=batch_size,
         class_mode='categorical', shuffle=False
     )
     return training_set, valid_set, test_set
 
 def get_callbacks(checkpoint_path):
+    os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
     return [
         callbacks.EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True),
         callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=2, verbose=1, min_lr=1e-7),
@@ -84,11 +93,6 @@ def evaluate(model, test_set):
     y_true = test_set.classes
     print(f'Accuracy Score: {accuracy_score(y_true, y_pred):.4f}')
     print(classification_report(y_true, y_pred, target_names=li))
-    plt.figure(figsize=(30, 30))
-    sns.heatmap(confusion_matrix(y_true, y_pred), annot=True, fmt='d',
-                cmap='Blues', xticklabels=li, yticklabels=li)
-    plt.title('Confusion Matrix')
-    plt.show()
 
 # --- LeNet-5 ---
 def build_lenet5(input_shape=(224, 224, 3), num_classes=38):
@@ -115,13 +119,13 @@ def build_lenet5(input_shape=(224, 224, 3), num_classes=38):
     return model
 
 def train_lenet5():
-    if not os.path.exists(TRAIN_DIR):
-        print(f"Dataset path '{TRAIN_DIR}' not found. Building model architecture for validation.")
-        m = build_lenet5()
-        print(m.summary())
+    train_dir, _ = get_data_dirs()
+    if not os.path.exists(train_dir):
+        print(f"Dataset path '{train_dir}' not found.")
         return
     training_set, valid_set, test_set = get_generators(img_size=(224, 224))
-    model = build_lenet5()
+    num_classes = len(training_set.class_indices)
+    model = build_lenet5(num_classes=num_classes)
     model.compile(optimizer=Adam(learning_rate=0.001), loss=keras.losses.categorical_crossentropy, metrics=['accuracy'])
     model.summary()
     history = model.fit(
@@ -129,13 +133,10 @@ def train_lenet5():
         steps_per_epoch=len(training_set),
         validation_data=valid_set,
         validation_steps=len(valid_set),
-        callbacks=get_callbacks("checkpoints/lenet5/")
+        callbacks=get_callbacks("checkpoints/lenet5/lenet5.h5")
     )
     test_loss, test_acc = model.evaluate(test_set)
     print(f"Test Loss: {test_loss:.4f}  Test Accuracy: {test_acc:.4f}")
-    show_plt(history.history, "accuracy")
-    show_plt(history.history, "loss")
-    evaluate(model, test_set)
 
 # --- VGG-16 ---
 def build_vgg16(input_shape=(224, 224, 3), num_classes=38):
@@ -150,26 +151,24 @@ def build_vgg16(input_shape=(224, 224, 3), num_classes=38):
     return model
 
 def train_vgg16():
-    if not os.path.exists(TRAIN_DIR):
-        print(f"Dataset path '{TRAIN_DIR}' not found. Building model architecture for validation.")
-        m = build_vgg16()
-        print(m.summary())
+    train_dir, _ = get_data_dirs()
+    if not os.path.exists(train_dir):
+        print(f"Dataset path '{train_dir}' not found.")
         return
     training_set, valid_set, test_set = get_generators()
-    model = build_vgg16()
+    num_classes = len(training_set.class_indices)
+    model = build_vgg16(num_classes=num_classes)
     model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
     model.summary()
     history = model.fit(
         training_set,
-        steps_per_epoch=training_set.samples // 128,
+        steps_per_epoch=max(1, training_set.samples // 128),
         validation_data=valid_set,
-        validation_steps=valid_set.samples // 128,
+        validation_steps=max(1, valid_set.samples // 128),
         epochs=10
     )
     model.save("VGG16Model.h5")
-    show_plt(history.history, "accuracy")
-    show_plt(history.history, "loss")
-    evaluate(model, test_set)
+    print("VGG-16 model trained and saved successfully!")
 
 # --- VGG-19 ---
 def build_vgg19(input_shape=(224, 224, 3), num_classes=38):
@@ -208,13 +207,13 @@ def build_vgg19(input_shape=(224, 224, 3), num_classes=38):
     return model
 
 def train_vgg19():
-    if not os.path.exists(TRAIN_DIR):
-        print(f"Dataset path '{TRAIN_DIR}' not found. Building model architecture for validation.")
-        m = build_vgg19()
-        print(m.summary())
+    train_dir, _ = get_data_dirs()
+    if not os.path.exists(train_dir):
+        print(f"Dataset path '{train_dir}' not found.")
         return
     training_set, valid_set, test_set = get_generators()
-    model = build_vgg19()
+    num_classes = len(training_set.class_indices)
+    model = build_vgg19(num_classes=num_classes)
     model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
     model.summary()
     history = model.fit(
@@ -222,14 +221,10 @@ def train_vgg19():
         steps_per_epoch=len(training_set),
         validation_data=valid_set,
         validation_steps=len(valid_set),
-        callbacks=get_callbacks("checkpoints/vgg19/")
+        callbacks=get_callbacks("checkpoints/vgg19/vgg19.h5")
     )
-    test_loss, test_acc = model.evaluate(test_set)
-    print(f"Test Loss: {test_loss:.4f}  Test Accuracy: {test_acc:.4f}")
     model.save("VGG19Model.h5")
-    show_plt(history.history, "accuracy")
-    show_plt(history.history, "loss")
-    evaluate(model, test_set)
+    print("VGG-19 model trained and saved successfully!")
 
 # --- ResNet-50 ---
 def build_resnet50(input_shape=(224, 224, 3), num_classes=38):
@@ -246,30 +241,29 @@ def build_resnet50(input_shape=(224, 224, 3), num_classes=38):
     return model
 
 def train_resnet50():
-    if not os.path.exists(TRAIN_DIR):
-        print(f"Dataset path '{TRAIN_DIR}' not found. Building model architecture for validation.")
-        m = build_resnet50()
-        print(m.summary())
+    train_dir, valid_dir = get_data_dirs()
+    if not os.path.exists(train_dir):
+        print(f"Dataset path '{train_dir}' not found.")
         return
     train_gen = ImageDataGenerator(shear_range=0.2, zoom_range=0.2, width_shift_range=0.2, height_shift_range=0.2)
     val_gen = ImageDataGenerator()
-    train = train_gen.flow_from_directory(TRAIN_DIR, batch_size=32, target_size=(224, 224), class_mode='categorical', seed=42)
-    valid = val_gen.flow_from_directory(VALID_DIR, batch_size=32, target_size=(224, 224), class_mode='categorical')
+    train = train_gen.flow_from_directory(train_dir, batch_size=32, target_size=(224, 224), class_mode='categorical', seed=42)
+    valid = val_gen.flow_from_directory(valid_dir, batch_size=32, target_size=(224, 224), class_mode='categorical')
 
-    model = build_resnet50()
+    num_classes = len(train.class_indices)
+    model = build_resnet50(num_classes=num_classes)
     model.compile(optimizer='Adam', loss='categorical_crossentropy', metrics=['accuracy'])
     model.summary()
 
     cb = [
         callbacks.EarlyStopping(monitor='val_accuracy', patience=7, verbose=1, mode='auto'),
         callbacks.ReduceLROnPlateau(monitor='val_accuracy', patience=5, min_lr=0.001, verbose=1),
-        callbacks.ModelCheckpoint('checkpoints/resnet50/', monitor='val_accuracy', save_best_only=True, verbose=1),
+        callbacks.ModelCheckpoint('checkpoints/resnet50/resnet50.h5', monitor='val_accuracy', save_best_only=True, verbose=1),
     ]
 
     history = model.fit(train, validation_data=valid, epochs=30, steps_per_epoch=200, verbose=1, callbacks=cb)
     model.save("RESNET50_PLANT_DISEASE.h5")
-    show_plt(history.history, "accuracy")
-    show_plt(history.history, "loss")
+    print("ResNet-50 model trained and saved successfully!")
 
 # --- DenseNet ---
 def conv_layer(conv_x, filters):
@@ -310,24 +304,22 @@ def dense_net(filters, growth_rate, classes, dense_block_size, layers_in_block, 
     return Model(inputs=input_img, outputs=output, name="DenseNet")
 
 def train_densenet():
-    if not os.path.exists(TRAIN_DIR):
-        print(f"Dataset path '{TRAIN_DIR}' not found. Building model architecture for validation.")
-        m = dense_net(24, 12, 38, 3, 4)
-        print(m.summary())
+    train_dir, _ = get_data_dirs()
+    if not os.path.exists(train_dir):
+        print(f"Dataset path '{train_dir}' not found.")
         return
     training_set, valid_set, test_set = get_generators(img_size=(32, 32))
-    model = dense_net(24, 12, 38, 3, 4)
+    num_classes = len(training_set.class_indices)
+    model = dense_net(24, 12, num_classes, 3, 4)
     model.summary()
     model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
     history = model.fit(
         training_set, epochs=20, verbose=1,
-        callbacks=get_callbacks("checkpoints/densenet/"),
+        callbacks=get_callbacks("checkpoints/densenet/densenet.h5"),
         validation_data=valid_set,
     )
     model.save("DenseNetModel.hdf5")
-    show_plt(history.history, "accuracy")
-    show_plt(history.history, "loss")
-    evaluate(model, test_set)
+    print("DenseNet model trained and saved successfully!")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
