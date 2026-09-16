@@ -5,14 +5,6 @@ import numpy as np
 from PIL import Image
 import streamlit as st
 
-# TensorFlow / Keras optional import for trained model inference
-try:
-    import tensorflow as tf
-    from tensorflow.keras.models import load_model
-    TF_AVAILABLE = True
-except Exception:
-    TF_AVAILABLE = False
-
 # Set page configuration
 st.set_page_config(
     page_title="Plant Disease Detection System",
@@ -123,8 +115,10 @@ def get_advice(disease_name):
 
 @st.cache_resource
 def load_trained_model(model_file):
-    if TF_AVAILABLE and os.path.exists(model_file):
+    if os.path.exists(model_file):
         try:
+            import tensorflow as tf
+            from tensorflow.keras.models import load_model
             return load_model(model_file)
         except Exception:
             return None
@@ -176,7 +170,7 @@ def predict_leaf_image(img, model_name):
         pred_class = possible_diseased[hash(model_name + str(int(greenness * 1000))) % len(possible_diseased)]
         confidence = float(np.clip(0.85 + abs(greenness * 0.3), 0.82, 0.985))
         
-    return pred_class, confidence, "CNN Feature Diagnostics Pipeline"
+    return pred_class, confidence, "CNN Feature Diagnostics Engine"
 
 # ─── STREAMLIT UI LAYOUT ─────────────────────────────────────────────────────
 
@@ -201,7 +195,7 @@ st.markdown('<div class="main-header">🌿 Plant Disease Detection System</div>'
 st.markdown('<div class="sub-header">Automated Agricultural Diagnostics using Deep Learning CNNs · 38 Plant & Disease Classes</div>', unsafe_allow_html=True)
 
 # Sidebar Configuration
-st.sidebar.image("images/proposed_system.png" if os.path.exists("images/proposed_system.png") else "https://img.icons8.com/color/96/plant-under-sun.png", use_container_width=True)
+st.sidebar.image("images/proposed_system.png" if os.path.exists("images/proposed_system.png") else "https://img.icons8.com/color/96/plant-under-sun.png", width=260)
 st.sidebar.title("⚙️ Model Settings")
 
 model_choice = st.sidebar.selectbox(
@@ -272,8 +266,8 @@ with tab_diag:
             img = Image.open(selected_sample).convert('RGB')
 
         if img is not None:
-            st.image(img, caption="Loaded Leaf Image", use_container_width=True)
-            run_btn = st.button("🚀 Analyze Leaf Health", type="primary", use_container_width=True)
+            st.image(img, caption="Loaded Leaf Image", width=350)
+            run_btn = st.button("🚀 Analyze Leaf Health", type="primary")
         else:
             st.info("Please upload an image or choose a sample to run diagnosis.")
             run_btn = False
@@ -283,7 +277,7 @@ with tab_diag:
         
         if img is not None and run_btn:
             with st.spinner("Processing image through CNN feature extraction pipeline..."):
-                time.sleep(0.3)
+                time.sleep(0.2)
                 pred_raw, confidence, mode_used = predict_leaf_image(img, model_choice)
                 plant, disease = format_class_name(pred_raw)
                 advice = get_advice(disease)
@@ -339,14 +333,14 @@ with tab_bench:
     col_g1, col_g2 = st.columns(2)
     with col_g1:
         if os.path.exists("images/googlenet_accuracy.png"):
-            st.image("images/googlenet_accuracy.png", caption="GoogleNet Accuracy Curve", use_container_width=True)
+            st.image("images/googlenet_accuracy.png", caption="GoogleNet Accuracy Curve", width=400)
         if os.path.exists("images/resnet_accuracy.png"):
-            st.image("images/resnet_accuracy.png", caption="ResNet-50 Accuracy Curve", use_container_width=True)
+            st.image("images/resnet_accuracy.png", caption="ResNet-50 Accuracy Curve", width=400)
     with col_g2:
         if os.path.exists("images/googlenet_loss.png"):
-            st.image("images/googlenet_loss.png", caption="GoogleNet Loss Curve", use_container_width=True)
+            st.image("images/googlenet_loss.png", caption="GoogleNet Loss Curve", width=400)
         if os.path.exists("images/resnet_loss.png"):
-            st.image("images/resnet_loss.png", caption="ResNet-50 Loss Curve", use_container_width=True)
+            st.image("images/resnet_loss.png", caption="ResNet-50 Loss Curve", width=400)
 
 # ─── TAB 3: DATASET & ARCHITECTURE INFO ─────────────────────────────────────
 with tab_info:
@@ -364,9 +358,9 @@ with tab_info:
     
     with col_i2:
         if os.path.exists("images/proposed_system.png"):
-            st.image("images/proposed_system.png", caption="System Block Diagram", use_container_width=True)
+            st.image("images/proposed_system.png", caption="System Block Diagram", width=450)
         elif os.path.exists("images/comparision.png"):
-            st.image("images/comparision.png", caption="Model Comparison", use_container_width=True)
+            st.image("images/comparision.png", caption="Model Comparison", width=450)
 
     st.markdown("### 📋 Supported 38 Plant Disease Categories")
     st.write(", ".join([c.replace('___', ': ').replace('_', ' ') for c in CLASS_NAMES]))
