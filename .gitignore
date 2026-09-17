@@ -43,8 +43,6 @@ logs/
 # ============================================
 # Datasets
 # ============================================
-data/
-datasets/
 *.zip
 *.tar
 *.tar.gz
@@ -68,3 +66,4 @@ Thumbs.db
 Desktop.ini
 .Spotlight-V100
 .Trashes
+dataset_parts/
