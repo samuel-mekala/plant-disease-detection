@@ -253,26 +253,13 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-### 2. Dataset Download & Setup (35,725 Leaf Images)
-The complete dataset containing **35,725 images across 23 plant disease classes** is hosted directly on the repository's **[GitHub Release v1.0.0-dataset](https://github.com/samuel-mekala/plant-disease-detection/releases/tag/v1.0.0-dataset)**.
+### 2. Dataset Setup (35,725 Leaf Images)
+The complete dataset containing **35,725 images across 23 plant disease classes** is included directly in this repository under the [`dataset_parts/`](dataset_parts) folder.
 
-To download and extract the dataset locally in one step:
+When you clone the repository, run this command to combine and extract the dataset:
 ```bash
-# 1. Download all split volumes from GitHub Release
-mkdir -p dataset_parts
-cd dataset_parts
-curl -L -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_aa \
-     -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_ab \
-     -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_ac \
-     -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_ad \
-     -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_ae \
-     -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_af \
-     -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_ag \
-     -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_ah
-
-# 2. Combine and extract to data/ directory
-cat plant_dataset.zip.part_* > ../plant_dataset.zip
-cd ..
+# Combine split volumes and extract to data/ directory
+cat dataset_parts/plant_dataset.zip.part_* > plant_dataset.zip
 unzip -q plant_dataset.zip -d data/
 ```
 
