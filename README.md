@@ -10,7 +10,6 @@
 [![TensorFlow](https://img.shields.io/badge/TensorFlow-2.12-FF6F00?style=flat-square&logo=tensorflow)](https://tensorflow.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0-EE4C2C?style=flat-square&logo=pytorch)](https://pytorch.org)
 [![Live Demo](https://img.shields.io/badge/Streamlit%20Cloud-Live%20App-FF4B4B?style=flat-square&logo=streamlit)](https://plant-disease-detection-pd.streamlit.app/)
-[![Dataset Release](https://img.shields.io/badge/GitHub%20Release-v1.0.0--dataset-green?style=flat-square&logo=github)](https://github.com/samuel-mekala/plant-disease-detection/releases/tag/v1.0.0-dataset)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?style=flat-square&logo=github-actions)](/.github/workflows/ci.yml)
 
 ---
