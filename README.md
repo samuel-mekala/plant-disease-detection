@@ -253,15 +253,10 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-### 2. Dataset Setup (35,725 Leaf Images)
-The complete dataset containing **35,725 images across 23 plant disease classes** is included directly in this repository under the [`dataset_parts/`](dataset_parts) folder.
+### 2. Dataset Structure (35,725 Leaf Images)
+The complete dataset containing **35,725 uncompressed raw leaf images across 23 plant disease classes** is included directly in this repository under the [`data/`](data) folder.
 
-When you clone the repository, run this command to combine and extract the dataset:
-```bash
-# Combine split volumes and extract to data/ directory
-cat dataset_parts/plant_dataset.zip.part_* > plant_dataset.zip
-unzip -q plant_dataset.zip -d data/
-```
+When you clone the repository, all image files are immediately present in `data/` ready for training or evaluation. No unzip commands required!
 
 ### 3. Model Training (Optional)
 To retrain models from scratch using the extracted dataset:
