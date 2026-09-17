@@ -10,6 +10,7 @@
 [![TensorFlow](https://img.shields.io/badge/TensorFlow-2.12-FF6F00?style=flat-square&logo=tensorflow)](https://tensorflow.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0-EE4C2C?style=flat-square&logo=pytorch)](https://pytorch.org)
 [![Live Demo](https://img.shields.io/badge/Streamlit%20Cloud-Live%20App-FF4B4B?style=flat-square&logo=streamlit)](https://plant-disease-detection-pd.streamlit.app/)
+[![Dataset Release](https://img.shields.io/badge/GitHub%20Release-v1.0.0--dataset-green?style=flat-square&logo=github)](https://github.com/samuel-mekala/plant-disease-detection/releases/tag/v1.0.0-dataset)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?style=flat-square&logo=github-actions)](/.github/workflows/ci.yml)
 
 ---
@@ -252,25 +253,41 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-### 2. Model Training (Optional)
-To retrain models from scratch using Kaggle's [New Plant Diseases Dataset](https://www.kaggle.com/datasets/vipoooool/new-plant-diseases-dataset):
+### 2. Dataset Download & Setup (35,725 Leaf Images)
+The complete dataset containing **35,725 images across 23 plant disease classes** is hosted directly on the repository's **[GitHub Release v1.0.0-dataset](https://github.com/samuel-mekala/plant-disease-detection/releases/tag/v1.0.0-dataset)**.
+
+To download and extract the dataset locally in one step:
+```bash
+# 1. Download all split volumes from GitHub Release
+mkdir -p dataset_parts
+cd dataset_parts
+curl -L -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_aa \
+     -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_ab \
+     -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_ac \
+     -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_ad \
+     -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_ae \
+     -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_af \
+     -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_ag \
+     -O https://github.com/samuel-mekala/plant-disease-detection/releases/download/v1.0.0-dataset/plant_dataset.zip.part_ah
+
+# 2. Combine and extract to data/ directory
+cat plant_dataset.zip.part_* > ../plant_dataset.zip
+cd ..
+unzip -q plant_dataset.zip -d data/
+```
+
+### 3. Model Training (Optional)
+To retrain models from scratch using the extracted dataset:
 
 ```bash
 # Train GoogleNet (Best Model - 99.1% Accuracy)
 python googlenet.py
 
-# Train AlexNet
-python alexnet.py
-
-# Train other models (VGG16, VGG19, ResNet50, DenseNet, LeNet5)
-python models.py --model vgg19
-python models.py --model resnet50
-python models.py --model densenet
-python models.py --model lenet5
-python models.py --model vgg16
+# Train PyTorch ResNet-18 with domain augmentations (98.96% Accuracy)
+python train_pytorch.py
 ```
 
-### 3. Deploy to Web (Streamlit Community Cloud / Hugging Face)
+### 4. Deploy to Web (Streamlit Community Cloud)
 1. Push your code to GitHub: `git push origin main`.
 2. Visit [share.streamlit.io](https://share.streamlit.io/) and connect your GitHub repository `samuel-mekala/plant-disease-detection`.
 3. Select `app.py` as the main file and click **Deploy**!
