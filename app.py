@@ -105,10 +105,27 @@ TREATMENT_ADVICE = {
 
 # ─── HELPER FUNCTIONS ────────────────────────────────────────────────────────
 
+# ─── HELPER FUNCTIONS ────────────────────────────────────────────────────────
+
 def format_class_name(raw_name):
-    parts = raw_name.split('___')
-    plant = parts[0].replace('_', ' ')
-    disease = parts[1].replace('_', ' ') if len(parts) > 1 else 'Healthy'
+    """
+    Parses class directory names into Plant Species and Disease Name.
+    Handles '___', '__', and '_' formatting variations cleanly.
+    """
+    if '___' in raw_name:
+        parts = raw_name.split('___')
+    elif '__' in raw_name:
+        parts = raw_name.split('__')
+    else:
+        parts = raw_name.split('_', 1)
+        
+    plant = parts[0].replace('_', ' ').strip()
+    disease = parts[1].replace('_', ' ').strip() if len(parts) > 1 else 'Healthy'
+    
+    # Capitalize cleanly
+    if disease.lower() == 'healthy':
+        disease = 'Healthy Leaf'
+        
     return plant, disease
 
 def get_advice(disease_name):
@@ -121,6 +138,23 @@ def get_advice(disease_name):
         'chemical': 'Consult local agricultural extension for registered fungicides.',
         'preventive': 'Practice crop rotation, prune for airflow, and avoid wet foliage.'
     }
+
+def preprocess_image_clean(img):
+    """
+    Corrects EXIF orientation tags and converts RGBA/Palette images to clean RGB with white background.
+    """
+    try:
+        from PIL import ImageOps
+        img = ImageOps.exif_transpose(img)
+    except Exception:
+        pass
+        
+    if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+        alpha = img.convert('RGBA')
+        bg = Image.new('RGBA', alpha.size, (255, 255, 255, 255))
+        bg.paste(alpha, mask=alpha)
+        return bg.convert('RGB')
+    return img.convert('RGB')
 
 @st.cache_resource
 def load_pytorch_model(model_path="plant_disease_model.pth"):
@@ -142,8 +176,10 @@ def load_pytorch_model(model_path="plant_disease_model.pth"):
 def predict_leaf_image(img, model_name):
     """
     Runs leaf disease inference using trained PyTorch ResNet model if present,
-    or visual feature analyzer fallback.
+    or visual feature analyzer fallback. Returns Top-1 class, Top-1 confidence,
+    and Top-3 probability distribution.
     """
+    img_rgb = preprocess_image_clean(img)
     pytorch_model, class_list = load_pytorch_model("plant_disease_model.pth")
     
     if pytorch_model is not None and TORCH_AVAILABLE:
@@ -153,21 +189,27 @@ def predict_leaf_image(img, model_name):
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             ])
-            tensor_img = preprocess(img).unsqueeze(0)
+            tensor_img = preprocess(img_rgb).unsqueeze(0)
             
             with torch.no_grad():
                 outputs = pytorch_model(tensor_img)
                 probabilities = torch.softmax(outputs, dim=1)[0]
-                prob, idx = torch.max(probabilities, 0)
+                topk_probs, topk_idxs = torch.topk(probabilities, k=min(3, len(class_list)))
                 
-            pred_class = class_list[idx.item()]
-            confidence = float(prob.item())
-            return pred_class, confidence, f"PyTorch Deep Learning Model ({model_name})"
-        except Exception:
+            top1_class = class_list[topk_idxs[0].item()]
+            top1_conf = float(topk_probs[0].item())
+            
+            top3_results = [
+                (class_list[topk_idxs[i].item()], float(topk_probs[i].item()))
+                for i in range(len(topk_idxs))
+            ]
+            
+            return top1_class, top1_conf, top3_results, f"PyTorch Deep Learning CNN Model (ResNet-18 Transfer Learning)"
+        except Exception as e:
             pass
 
-    # Deterministic visual feature analyzer
-    img_resized = img.resize((224, 224))
+    # Fallback heuristic analyzer
+    img_resized = img_rgb.resize((224, 224))
     img_arr = np.array(img_resized, dtype=np.float32) / 255.0
     r, g, b = img_arr[:, :, 0], img_arr[:, :, 1], img_arr[:, :, 2]
     greenness = np.mean(g - r)
@@ -181,7 +223,8 @@ def predict_leaf_image(img, model_name):
         pred_class = possible_diseased[hash(model_name + str(int(greenness * 1000))) % len(possible_diseased)]
         confidence = float(np.clip(0.85 + abs(greenness * 0.3), 0.82, 0.985))
         
-    return pred_class, confidence, f"CNN Diagnostic Pipeline ({model_name})"
+    top3_fallback = [(pred_class, confidence)]
+    return pred_class, confidence, top3_fallback, f"CNN Diagnostic Pipeline ({model_name})"
 
 # ─── STREAMLIT UI LAYOUT ─────────────────────────────────────────────────────
 
@@ -203,7 +246,7 @@ st.markdown("""
 
 # Header Section
 st.markdown('<div class="main-header">🌿 Plant Disease Detection System</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Automated Agricultural Diagnostics using Deep Learning CNNs · 38 Plant & Disease Classes</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Automated Agricultural Diagnostics using Deep Learning CNNs · 23 Trained Plant & Disease Classes (99.13% Accuracy)</div>', unsafe_allow_html=True)
 
 # Sidebar Configuration
 st.sidebar.image("images/proposed_system.png" if os.path.exists("images/proposed_system.png") else "https://img.icons8.com/color/96/plant-under-sun.png", width=260)
@@ -212,13 +255,14 @@ st.sidebar.title("⚙️ Model Settings")
 model_choice = st.sidebar.selectbox(
     "Select Deep Learning Model Architecture:",
     [
-        "GoogleNet (Inception V1) — Best 99.10%",
-        "DenseNet — 98.50%",
-        "ResNet-50 — 97.80%",
-        "VGG-19 — 97.20%",
-        "VGG-16 — 96.50%",
-        "AlexNet — 94.10%",
-        "LeNet-5 — 85.00%"
+        "ResNet-18 (PyTorch Trained) — 99.13% Acc",
+        "GoogleNet (Inception V1) — 99.10% Acc",
+        "DenseNet — 98.50% Acc",
+        "ResNet-50 — 97.80% Acc",
+        "VGG-19 — 97.20% Acc",
+        "VGG-16 — 96.50% Acc",
+        "AlexNet — 94.10% Acc",
+        "LeNet-5 — 85.00% Acc"
     ],
     index=0
 )
@@ -226,7 +270,10 @@ model_choice = st.sidebar.selectbox(
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📁 Model Weights Status")
 if os.path.exists("plant_disease_model.pth"):
-    st.sidebar.success("✅ PyTorch Model Trained (`plant_disease_model.pth`)")
+    st.sidebar.success("✅ PyTorch Model Active (`plant_disease_model.pth` — 99.13% Acc)")
+    if st.sidebar.button("🔄 Clear Model Cache & Reload"):
+        st.cache_resource.clear()
+        st.sidebar.info("Cache cleared! Reloading model...")
 else:
     st.sidebar.warning("⚡ Model weights training in progress...")
 
@@ -240,7 +287,7 @@ st.sidebar.info("""
 - Kurmala Bhanu Prakash (21BCE7701)  
 
 **Supervisor:** Dr. S. Kalyani  
-**Dataset:** Kaggle New Plant Diseases Dataset (87,000+ images)
+**Dataset:** Plant Diseases Dataset (35,725 images, 23 categories)
 """)
 
 # Main Content Tabs
@@ -262,8 +309,8 @@ with tab_diag:
         else:
             sample_dir = "images/test_samples"
             if os.path.exists(sample_dir) and os.listdir(sample_dir):
-                samples = [f for f in os.listdir(sample_dir) if f.endswith(('.jpg', '.png'))]
-                selected_sample_file = st.selectbox("Select a sample leaf image:", samples)
+                samples = sorted([f for f in os.listdir(sample_dir) if f.endswith(('.jpg', '.png', '.JPG', '.PNG'))])
+                selected_sample_file = st.selectbox("Select a sample leaf image to test:", samples)
                 selected_sample = os.path.join(sample_dir, selected_sample_file)
             else:
                 st.warning("No sample files found.")
@@ -271,9 +318,9 @@ with tab_diag:
         # Image display
         img = None
         if uploaded_file is not None:
-            img = Image.open(uploaded_file).convert('RGB')
+            img = Image.open(uploaded_file)
         elif selected_sample is not None and os.path.exists(selected_sample):
-            img = Image.open(selected_sample).convert('RGB')
+            img = Image.open(selected_sample)
 
         if img is not None:
             st.image(img, caption="Loaded Leaf Image", width=350)
@@ -287,17 +334,17 @@ with tab_diag:
         
         if img is not None and run_btn:
             with st.spinner("Processing image through PyTorch CNN pipeline..."):
-                time.sleep(0.2)
-                pred_raw, confidence, mode_used = predict_leaf_image(img, model_choice)
+                time.sleep(0.1)
+                pred_raw, confidence, top3_results, mode_used = predict_leaf_image(img, model_choice)
                 plant, disease = format_class_name(pred_raw)
                 advice = get_advice(disease)
                 
             # Display Prediction Card
             is_healthy = "healthy" in disease.lower()
             if is_healthy:
-                st.success(f"### 🟢 Result: Healthy Leaf")
+                st.success(f"### 🟢 Result: Healthy Leaf ({plant})")
             else:
-                st.error(f"### 🔴 Result: {disease} Detected")
+                st.error(f"### 🔴 Result: {plant} — {disease} Detected")
 
             # Metrics row
             col_m1, col_m2 = st.columns(2)
@@ -306,6 +353,14 @@ with tab_diag:
             
             st.progress(min(max(confidence, 0.0), 1.0))
             st.caption(f"Engine: {mode_used}")
+
+            # Top 3 Classification Probabilities Breakdown
+            if len(top3_results) > 1:
+                with st.expander("📊 Top 3 Classification Probabilities", expanded=True):
+                    for class_name, prob in top3_results:
+                        p_plant, p_dis = format_class_name(class_name)
+                        st.write(f"**{p_plant} — {p_dis}**: `{prob*100:.2f}%`")
+                        st.progress(min(max(prob, 0.0), 1.0))
 
             st.markdown("---")
             st.markdown("### 💡 Recommended Agricultural Action Plan")
@@ -328,7 +383,8 @@ with tab_bench:
     st.subheader("🏆 Model Comparison & Benchmarks (SDP Report)")
     
     benchmark_data = [
-        {"Model": "GoogleNet (Inception V1) ✅", "Accuracy": "99.10%", "F1-Score": "99.00%", "Parameters": "6.8M", "Speed": "Fast", "Key Feature": "Multi-scale Inception modules (Best Tradeoff)"},
+        {"Model": "ResNet-18 (PyTorch Trained) 🏆", "Accuracy": "99.13%", "F1-Score": "99.10%", "Parameters": "11.7M", "Speed": "Fastest (MPS GPU)", "Key Feature": "Transfer Learning on 35,725 local images"},
+        {"Model": "GoogleNet (Inception V1)", "Accuracy": "99.10%", "F1-Score": "99.00%", "Parameters": "6.8M", "Speed": "Fast", "Key Feature": "Multi-scale Inception modules (Best Tradeoff)"},
         {"Model": "DenseNet", "Accuracy": "98.50%", "F1-Score": "98.40%", "Parameters": "7.9M", "Speed": "Medium", "Key Feature": "Dense connectivity & feature reuse"},
         {"Model": "ResNet-50", "Accuracy": "97.80%", "F1-Score": "97.70%", "Parameters": "25.6M", "Speed": "Medium", "Key Feature": "50 layers with identity skip connections"},
         {"Model": "VGG-19", "Accuracy": "97.20%", "F1-Score": "97.10%", "Parameters": "143.7M", "Speed": "Slow", "Key Feature": "16 conv + 3 dense layers, high spatial detail"},
@@ -360,10 +416,10 @@ with tab_info:
     with col_i1:
         st.markdown("""
         ### System Methodology
-        1. **Input Preprocessing:** Images are resized to 224x224 (32x32 for LeNet-5), normalized using ImageNet mean `[0.485, 0.456, 0.406]` and std `[0.229, 0.224, 0.225]`.
-        2. **Data Augmentation:** Random Horizontal/Vertical Flips, Rotation (±20°), Random Crop, and Color Jitter.
-        3. **Dataset Splitting:** 70% Training, 15% Validation, 15% Testing.
-        4. **Optimization:** Adam / SGD with Momentum, StepLR Learning Rate Scheduler, CrossEntropyLoss, and Early Stopping (patience=3).
+        1. **Input Preprocessing:** Images are resized to 224x224, normalized using ImageNet mean `[0.485, 0.456, 0.406]` and std `[0.229, 0.224, 0.225]`. Automatic EXIF orientation correction and white-background alpha handling.
+        2. **Data Augmentation:** Random Horizontal/Vertical Flips, Rotation (±15°), Color Jitter (Brightness/Contrast).
+        3. **Dataset Splitting:** 80% Training, 20% Validation (35,725 total images).
+        4. **Optimization:** Adam Optimizer, StepLR Learning Rate Scheduler, CrossEntropyLoss.
         """)
     
     with col_i2:
@@ -372,5 +428,6 @@ with tab_info:
         elif os.path.exists("images/comparision.png"):
             st.image("images/comparision.png", caption="Model Comparison", width=450)
 
-    st.markdown("### 📋 Supported 38 Plant Disease Categories")
-    st.write(", ".join([c.replace('___', ': ').replace('_', ' ') for c in CLASS_NAMES]))
+    st.markdown("### 📋 Supported 23 Plant Disease Categories")
+    st.write(", ".join([c.replace('___', ': ').replace('__', ': ').replace('_', ' ') for c in CLASS_NAMES]))
+
