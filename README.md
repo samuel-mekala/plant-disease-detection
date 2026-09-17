@@ -208,30 +208,16 @@ plant-disease-detection/
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                  # GitHub Actions CI
-├── images/
-|   ├── proposed_system.png
-|   ├── comparision.png
-|   ├── parameters.png
-│   ├── googlenet_accuracy.png
-│   ├── googlenet_loss.png
-│   ├── alexnet_accuracy.png
-│   ├── alexnet_loss.png
-│   ├── vgg16_accuracy.png
-│   ├── vgg16_loss.png
-│   ├── vgg19_accuracy.png
-│   ├── vgg19_loss.png
-│   ├── resnet_accuracy.png
-│   ├── resnet_loss.png
-│   ├── densenet_accuracy.png
-│   ├── densenet_loss.png
-│   ├── lenet_accuracy.png
-│   ├── lenet_loss.png
-│   └── gui_screenshot.png
-├── alexnet.py                      # AlexNet — training + evaluation + confusion matrix
-├── googlenet.py                    # GoogleNet — best model (99.1%)
-├── models.py                       # LeNet-5, VGG16, VGG19, ResNet50, DenseNet
-├── requirements.txt
-└── README.md
+├── data/                           # 35,725 raw leaf images (23 disease classes)
+├── images/                         # Project diagrams & benchmark figures
+├── app.py                          # Streamlit Web App (Grad-CAM, Real-World Preprocessing)
+├── train_pytorch.py                # ResNet-18 PyTorch training script (98.96% Acc)
+├── googlenet.py                    # GoogleNet model benchmark
+├── alexnet.py                      # AlexNet model benchmark
+├── models.py                       # VGG16, VGG19, ResNet50, DenseNet, LeNet-5
+├── requirements.txt                # Python dependencies for cloud & local
+├── LICENSE                         # MIT License
+└── README.md                       # Documentation & Deployment Guide
 ```
 
 ---
