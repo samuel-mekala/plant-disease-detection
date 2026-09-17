@@ -98,15 +98,26 @@ def train_model(epochs=4, batch_size=64, lr=0.0003):
     )
     model = model.to(device)
 
+    best_acc = 0.0
+    model_path = "plant_disease_model.pth"
+    if os.path.exists(model_path):
+        try:
+            ckpt = torch.load(model_path, map_location=device)
+            if 'model_state_dict' in ckpt:
+                model.load_state_dict(ckpt['model_state_dict'], strict=False)
+                best_acc = ckpt.get('accuracy', 0.0)
+                print(f"🔄 Resumed from saved checkpoint '{model_path}' (Previous Best Acc: {best_acc*100:.2f}%)", flush=True)
+        except Exception as e:
+            print(f"Starting fresh training (notice: {e})", flush=True)
+
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.2)
 
-    best_acc = 0.0
     start_time = time.time()
 
     for epoch in range(epochs):
-        print(f"\n================ Epoch {epoch+1}/{epochs} ================")
+        print(f"\n================ Epoch {epoch+1}/{epochs} ================", flush=True)
         
         # Training Phase
         model.train()
@@ -131,12 +142,12 @@ def train_model(epochs=4, batch_size=64, lr=0.0003):
 
             if (idx + 1) % 50 == 0:
                 acc_batch = (torch.sum(preds == labels.data).float().item() / inputs.size(0)) * 100
-                print(f" Batch {idx+1:03d}/{len(train_loader)} | Loss: {loss.item():.4f} | Batch Acc: {acc_batch:.1f}%")
+                print(f" Batch {idx+1:03d}/{len(train_loader)} | Loss: {loss.item():.4f} | Batch Acc: {acc_batch:.1f}%", flush=True)
 
         scheduler.step()
         epoch_loss = running_loss / total_samples
         epoch_acc = running_corrects / total_samples
-        print(f"--> Epoch {epoch+1} Train Loss: {epoch_loss:.4f} | Train Acc: {epoch_acc*100:.2f}%")
+        print(f"--> Epoch {epoch+1} Train Loss: {epoch_loss:.4f} | Train Acc: {epoch_acc*100:.2f}%", flush=True)
 
         # Validation Phase
         model.eval()
@@ -156,7 +167,7 @@ def train_model(epochs=4, batch_size=64, lr=0.0003):
                 val_total += inputs.size(0)
 
         val_epoch_acc = val_corrects / val_total
-        print(f"--> Epoch {epoch+1} Valid Loss: {(val_loss/val_total):.4f} | Valid Acc: {val_epoch_acc*100:.2f}%")
+        print(f"--> Epoch {epoch+1} Valid Loss: {(val_loss/val_total):.4f} | Valid Acc: {val_epoch_acc*100:.2f}%", flush=True)
 
         if val_epoch_acc >= best_acc:
             best_acc = val_epoch_acc
@@ -165,10 +176,11 @@ def train_model(epochs=4, batch_size=64, lr=0.0003):
                 'class_names': class_names,
                 'accuracy': float(val_epoch_acc)
             }, "plant_disease_model.pth")
-            print(f"🏆 Saved Best Model Checkpoint to 'plant_disease_model.pth' (Acc: {val_epoch_acc*100:.2f}%)")
+            print(f"🏆 Saved Best Model Checkpoint to 'plant_disease_model.pth' (Acc: {val_epoch_acc*100:.2f}%)", flush=True)
 
     elapsed = time.time() - start_time
-    print(f"\n✅ Training Complete in {elapsed//60:.0f}m {elapsed%60:.0f}s! Best Validation Accuracy: {best_acc*100:.2f}%")
+    print(f"\n✅ Training Complete in {elapsed//60:.0f}m {elapsed%60:.0f}s! Best Validation Accuracy: {best_acc*100:.2f}%", flush=True)
+
 
 if __name__ == "__main__":
     train_model(epochs=4, batch_size=64, lr=0.0003)
