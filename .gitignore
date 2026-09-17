@@ -45,6 +45,7 @@ logs/
 # ============================================
 data/
 datasets/
+dataset_parts/
 *.zip
 *.tar
 *.tar.gz

@@ -2,20 +2,39 @@
 
 > **Senior Design Project** · VIT-AP University · Dec 2024  
 > **Team:** Satyala Murali Karthik · **Mekala Samuel** · Kurmala Bhanu Prakash  
-> **Guide:** Dr. S. Kalyani · School of Computer Science & Engineering
+> **Guide:** Dr. S. Kalyani · School of Computer Science & Engineering  
+> 
+> 🌐 **Live Deployed Web Application**: **[https://plant-disease-detection-pd.streamlit.app/](https://plant-disease-detection-pd.streamlit.app/)**
 
 [![Python](https://img.shields.io/badge/Python-3.10-blue?style=flat-square&logo=python)](https://python.org)
 [![TensorFlow](https://img.shields.io/badge/TensorFlow-2.12-FF6F00?style=flat-square&logo=tensorflow)](https://tensorflow.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0-EE4C2C?style=flat-square&logo=pytorch)](https://pytorch.org)
+[![Live Demo](https://img.shields.io/badge/Streamlit%20Cloud-Live%20App-FF4B4B?style=flat-square&logo=streamlit)](https://plant-disease-detection-pd.streamlit.app/)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?style=flat-square&logo=github-actions)](/.github/workflows/ci.yml)
 
 ---
 
 ## 📌 Overview
 
-Plant diseases are a major threat to global food security. This project builds an **automated deep learning system** that classifies plant leaf images into **38 healthy and diseased categories** using the <a href="https://www.kaggle.com/datasets/vipoooool/new-plant-diseases-dataset" target="_blank">New Plant Diseases Dataset</a> (87,000+ images from Kaggle).
+Plant diseases are a major threat to global food security. This project builds an **automated deep learning system** that classifies plant leaf images into **healthy and diseased categories** using the <a href="https://www.kaggle.com/datasets/vipoooool/new-plant-diseases-dataset" target="_blank">New Plant Diseases Dataset</a>.
 
-We implemented and **benchmarked 7 CNN architectures** side-by-side using transfer learning, and integrated the best model into a **real-time GUI** for practical agricultural use.
+We implemented and **benchmarked CNN architectures** side-by-side using PyTorch transfer learning with domain-invariant data augmentations, and integrated the best model into an **interactive Web Application** featuring Grad-CAM attention heatmaps and real-world photo pre-processing.
+
+👉 **Try the Live App**: **[https://plant-disease-detection-pd.streamlit.app/](https://plant-disease-detection-pd.streamlit.app/)**
+
+---
+
+## 🚀 Live Web Deployment
+
+Your live web application is deployed online on **Streamlit Cloud**:  
+👉 **[https://plant-disease-detection-pd.streamlit.app/](https://plant-disease-detection-pd.streamlit.app/)**
+
+### Features on Live Site:
+- 🌿 **23 Trained Plant & Disease Classes** (Apple, Corn, Potato, Tomato, Pepper).
+- 📸 **Real-World Photo Preprocessing**: Auto-center crops primary leaf region and normalizes outdoor lighting.
+- 🔥 **Grad-CAM Disease Attention Heatmap**: Visualizes exact lesion hotspots activated by the neural network.
+- 📊 **Top-3 Classification Probabilities**: Displays prediction confidence breakdown.
+
 
 ---
 
