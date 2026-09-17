@@ -41,11 +41,10 @@ runs/
 logs/
 
 # ============================================
-# Datasets (never upload raw data to GitHub)
+# Datasets
 # ============================================
 data/
 datasets/
-dataset_parts/
 *.zip
 *.tar
 *.tar.gz
