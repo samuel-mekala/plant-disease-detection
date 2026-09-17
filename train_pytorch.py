@@ -29,45 +29,78 @@ def get_dataset_root():
                 return os.path.join(c, "train")
     return "data"
 
-def train_model(epochs=3, batch_size=64, lr=0.001):
+class TransformedDataset(torch.utils.data.Dataset):
+    def __init__(self, subset, transform):
+        self.subset = subset
+        self.transform = transform
+    def __getitem__(self, idx):
+        x, y = self.subset[idx]
+        if self.transform:
+            x = self.transform(x)
+        return x, y
+    def __len__(self):
+        return len(self.subset)
+
+def train_model(epochs=4, batch_size=64, lr=0.0003):
     data_dir = get_dataset_root()
     print(f"Using dataset directory: '{data_dir}'")
 
     device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
     print(f"Using compute device: {device}")
 
-    transform_pipeline = transforms.Compose([
+    # Advanced In-The-Wild Domain Augmentations (Handles outdoor lighting, background noise, angled shots)
+    train_transform = transforms.Compose([
+        transforms.RandomResizedCrop(224, scale=(0.55, 1.0)),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomVerticalFlip(p=0.3),
+        transforms.RandomRotation(30),
+        transforms.ColorJitter(brightness=0.35, contrast=0.35, saturation=0.35, hue=0.08),
+        transforms.RandomAffine(degrees=0, translate=(0.08, 0.08)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        transforms.RandomErasing(p=0.25, scale=(0.02, 0.2))
+    ])
+
+    val_transform = transforms.Compose([
         transforms.Resize((224, 224)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(15),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
-    full_dataset = datasets.ImageFolder(data_dir, transform=transform_pipeline)
-    class_names = full_dataset.classes
+    # Load dataset with separate train vs val transforms
+    dataset_raw = datasets.ImageFolder(data_dir)
+    class_names = dataset_raw.classes
     num_classes = len(class_names)
 
-    print(f"Loaded {len(full_dataset)} total images across {num_classes} classes:")
+    print(f"Loaded {len(dataset_raw)} total images across {num_classes} classes:")
     for idx, cname in enumerate(class_names):
         print(f"  [{idx:02d}] {cname}")
 
-    val_size = int(0.2 * len(full_dataset))
-    train_size = len(full_dataset) - val_size
-    train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
+    val_size = int(0.2 * len(dataset_raw))
+    train_size = len(dataset_raw) - val_size
+    train_subset, val_subset = random_split(dataset_raw, [train_size, val_size], generator=torch.Generator().manual_seed(42))
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
+    train_dataset = TransformedDataset(train_subset, train_transform)
+    val_dataset = TransformedDataset(val_subset, val_transform)
 
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+
+
+    # ResNet-18 with Dropout & Fine-Tuning
     model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
     num_ftrs = model.fc.in_features
-    model.fc = nn.Linear(num_ftrs, num_classes)
+    
+    # Custom head with Dropout regularization
+    model.fc = nn.Sequential(
+        nn.Dropout(p=0.3),
+        nn.Linear(num_ftrs, num_classes)
+    )
     model = model.to(device)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.1)
+    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.2)
 
     best_acc = 0.0
     start_time = time.time()
@@ -138,4 +171,5 @@ def train_model(epochs=3, batch_size=64, lr=0.001):
     print(f"\n✅ Training Complete in {elapsed//60:.0f}m {elapsed%60:.0f}s! Best Validation Accuracy: {best_acc*100:.2f}%")
 
 if __name__ == "__main__":
-    train_model(epochs=3, batch_size=64, lr=0.001)
+    train_model(epochs=4, batch_size=64, lr=0.0003)
+

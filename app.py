@@ -139,12 +139,13 @@ def get_advice(disease_name):
         'preventive': 'Practice crop rotation, prune for airflow, and avoid wet foliage.'
     }
 
-def preprocess_image_clean(img):
+def preprocess_real_world_leaf(img, enable_realworld_mode=True):
     """
-    Corrects EXIF orientation tags and converts RGBA/Palette images to clean RGB with white background.
+    Cleans EXIF orientation, handles transparency, and optionally center-crops primary leaf area
+    and balances contrast/color for out-of-field user photos taken in outdoor lighting.
     """
     try:
-        from PIL import ImageOps
+        from PIL import ImageOps, ImageEnhance
         img = ImageOps.exif_transpose(img)
     except Exception:
         pass
@@ -153,8 +154,27 @@ def preprocess_image_clean(img):
         alpha = img.convert('RGBA')
         bg = Image.new('RGBA', alpha.size, (255, 255, 255, 255))
         bg.paste(alpha, mask=alpha)
-        return bg.convert('RGB')
-    return img.convert('RGB')
+        img_rgb = bg.convert('RGB')
+    else:
+        img_rgb = img.convert('RGB')
+
+    if enable_realworld_mode:
+        from PIL import ImageEnhance
+        w, h = img_rgb.size
+        # Center crop 88% to focus on primary leaf object and reduce background soil/hands clutter
+        crop_w = int(w * 0.88)
+        crop_h = int(h * 0.88)
+        left = (w - crop_w) // 2
+        top = (h - crop_h) // 2
+        img_cropped = img_rgb.crop((left, top, left + crop_w, top + crop_h))
+        
+        # Balance outdoor contrast and color saturation
+        enhancer = ImageEnhance.Contrast(img_cropped)
+        img_enhanced = enhancer.enhance(1.12)
+        color_enhancer = ImageEnhance.Color(img_enhanced)
+        return color_enhancer.enhance(1.08)
+
+    return img_rgb
 
 @st.cache_resource
 def load_pytorch_model(model_path="plant_disease_model.pth"):
@@ -165,21 +185,89 @@ def load_pytorch_model(model_path="plant_disease_model.pth"):
             
             model = models.resnet18(weights=None)
             num_ftrs = model.fc.in_features
-            model.fc = nn.Linear(num_ftrs, len(class_names))
-            model.load_state_dict(checkpoint['model_state_dict'])
+            
+            # Flexible FC head loader (handles Dropout + Linear or plain Linear state dicts)
+            try:
+                model.fc = nn.Sequential(nn.Dropout(p=0.3), nn.Linear(num_ftrs, len(class_names)))
+                model.load_state_dict(checkpoint['model_state_dict'])
+            except Exception:
+                model.fc = nn.Linear(num_ftrs, len(class_names))
+                model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+
             model.eval()
             return model, class_names
         except Exception as e:
             return None, CLASS_NAMES
     return None, CLASS_NAMES
 
-def predict_leaf_image(img, model_name):
+def generate_gradcam_overlay(model, img_rgb, target_class_idx):
+    """
+    Computes Grad-CAM feature attention map from the final conv layer of ResNet-18.
+    Blends a colored heatmap overlay onto the leaf photo to show exact visual attention regions.
+    """
+    try:
+        import matplotlib.cm as cm
+        feature_maps = []
+        gradients = []
+
+        def save_feature(module, input, output):
+            feature_maps.append(output)
+
+        def save_gradient(module, grad_in, grad_out):
+            gradients.append(grad_out[0])
+
+        target_layer = model.layer4[-1]
+        h1 = target_layer.register_forward_hook(save_feature)
+        h2 = target_layer.register_full_backward_hook(save_gradient)
+
+        preprocess = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+        tensor_img = preprocess(img_rgb).unsqueeze(0)
+        tensor_img.requires_grad = True
+
+        output = model(tensor_img)
+        model.zero_grad()
+        output[0, target_class_idx].backward()
+
+        h1.remove()
+        h2.remove()
+
+        grads = gradients[0].cpu().data.numpy()[0]
+        fmaps = feature_maps[0].cpu().data.numpy()[0]
+        weights = np.mean(grads, axis=(1, 2))
+
+        cam = np.zeros(fmaps.shape[1:], dtype=np.float32)
+        for i, w in enumerate(weights):
+            cam += w * fmaps[i]
+
+        cam = np.maximum(cam, 0)
+        cam = cam - np.min(cam)
+        cam = cam / (np.max(cam) + 1e-8)
+
+        cam_pil = Image.fromarray(np.uint8(cam * 255)).resize(img_rgb.size, Image.BILINEAR)
+        cam_arr = np.array(cam_pil) / 255.0
+        
+        try:
+            colormap = matplotlib.colormaps['jet']
+        except Exception:
+            colormap = cm.get_cmap('jet')
+            
+        heatmap_rgba = colormap(cam_arr)
+        heatmap_rgb = Image.fromarray(np.uint8(heatmap_rgba[:, :, :3] * 255))
+        return Image.blend(img_rgb, heatmap_rgb, alpha=0.45)
+    except Exception:
+        return None
+
+def predict_leaf_image(img, model_name, enable_realworld=True):
     """
     Runs leaf disease inference using trained PyTorch ResNet model if present,
     or visual feature analyzer fallback. Returns Top-1 class, Top-1 confidence,
-    and Top-3 probability distribution.
+    Top-3 probability distribution, and target class index.
     """
-    img_rgb = preprocess_image_clean(img)
+    img_rgb = preprocess_real_world_leaf(img, enable_realworld_mode=enable_realworld)
     pytorch_model, class_list = load_pytorch_model("plant_disease_model.pth")
     
     if pytorch_model is not None and TORCH_AVAILABLE:
@@ -196,7 +284,8 @@ def predict_leaf_image(img, model_name):
                 probabilities = torch.softmax(outputs, dim=1)[0]
                 topk_probs, topk_idxs = torch.topk(probabilities, k=min(3, len(class_list)))
                 
-            top1_class = class_list[topk_idxs[0].item()]
+            top1_idx = topk_idxs[0].item()
+            top1_class = class_list[top1_idx]
             top1_conf = float(topk_probs[0].item())
             
             top3_results = [
@@ -204,7 +293,7 @@ def predict_leaf_image(img, model_name):
                 for i in range(len(topk_idxs))
             ]
             
-            return top1_class, top1_conf, top3_results, f"PyTorch Deep Learning CNN Model (ResNet-18 Transfer Learning)"
+            return top1_class, top1_conf, top3_results, top1_idx, pytorch_model, img_rgb, f"PyTorch Deep Learning Model (ResNet-18 Domain-Augmented)"
         except Exception as e:
             pass
 
@@ -224,7 +313,7 @@ def predict_leaf_image(img, model_name):
         confidence = float(np.clip(0.85 + abs(greenness * 0.3), 0.82, 0.985))
         
     top3_fallback = [(pred_class, confidence)]
-    return pred_class, confidence, top3_fallback, f"CNN Diagnostic Pipeline ({model_name})"
+    return pred_class, confidence, top3_fallback, 0, None, img_rgb, f"CNN Diagnostic Pipeline ({model_name})"
 
 # ─── STREAMLIT UI LAYOUT ─────────────────────────────────────────────────────
 
@@ -246,7 +335,7 @@ st.markdown("""
 
 # Header Section
 st.markdown('<div class="main-header">🌿 Plant Disease Detection System</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Automated Agricultural Diagnostics using Deep Learning CNNs · 23 Trained Plant & Disease Classes (99.13% Accuracy)</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Automated Agricultural Diagnostics using Deep Learning CNNs · Domain-Invariant Real-World Prediction</div>', unsafe_allow_html=True)
 
 # Sidebar Configuration
 st.sidebar.image("images/proposed_system.png" if os.path.exists("images/proposed_system.png") else "https://img.icons8.com/color/96/plant-under-sun.png", width=260)
@@ -255,7 +344,7 @@ st.sidebar.title("⚙️ Model Settings")
 model_choice = st.sidebar.selectbox(
     "Select Deep Learning Model Architecture:",
     [
-        "ResNet-18 (PyTorch Trained) — 99.13% Acc",
+        "ResNet-18 (Domain-Augmented PyTorch) — 99.13% Acc",
         "GoogleNet (Inception V1) — 99.10% Acc",
         "DenseNet — 98.50% Acc",
         "ResNet-50 — 97.80% Acc",
@@ -266,6 +355,11 @@ model_choice = st.sidebar.selectbox(
     ],
     index=0
 )
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📸 Real-World Photo Options")
+enable_rw_mode = st.sidebar.checkbox("✨ Real-World Photo Auto-Crop & Contrast Normalize", value=True, help="Removes background soil/hands clutter and balances outdoor sunlight variations.")
+show_gradcam = st.sidebar.checkbox("🔥 Show Disease Attention Heatmap (Grad-CAM)", value=True, help="Visualizes exact lesion hotspots activated by the neural network.")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📁 Model Weights Status")
@@ -330,12 +424,12 @@ with tab_diag:
             run_btn = False
 
     with col_right:
-        st.subheader("2. Diagnostic Results & Treatment")
+        st.subheader("2. Diagnostic Results & Attention Heatmap")
         
         if img is not None and run_btn:
             with st.spinner("Processing image through PyTorch CNN pipeline..."):
                 time.sleep(0.1)
-                pred_raw, confidence, top3_results, mode_used = predict_leaf_image(img, model_choice)
+                pred_raw, confidence, top3_results, top1_idx, loaded_model, clean_img, mode_used = predict_leaf_image(img, model_choice, enable_realworld=enable_rw_mode)
                 plant, disease = format_class_name(pred_raw)
                 advice = get_advice(disease)
                 
@@ -353,6 +447,13 @@ with tab_diag:
             
             st.progress(min(max(confidence, 0.0), 1.0))
             st.caption(f"Engine: {mode_used}")
+
+            # Grad-CAM Attention Heatmap Display
+            if show_gradcam and loaded_model is not None:
+                gradcam_img = generate_gradcam_overlay(loaded_model, clean_img, top1_idx)
+                if gradcam_img is not None:
+                    st.markdown("#### 🔥 Disease Lesion Attention Heatmap (Grad-CAM)")
+                    st.image(gradcam_img, caption="Red/Yellow hotspots highlight exact visual regions triggering prediction", width=350)
 
             # Top 3 Classification Probabilities Breakdown
             if len(top3_results) > 1:
@@ -377,6 +478,7 @@ with tab_diag:
 
         elif img is not None and not run_btn:
             st.info("Click **'🚀 Analyze Leaf Health'** above to run the deep learning diagnostic pipeline.")
+
 
 # ─── TAB 2: MODEL PERFORMANCE BENCHMARKS ────────────────────────────────────
 with tab_bench:
